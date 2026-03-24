@@ -39,6 +39,6 @@ public class WordSet {
     // Helper method to get as List for the Service Layer
     public List<String> getWordsAsList() {
         if (rawWords == null || rawWords.isEmpty()) return List.of();
-        return List.of(rawWords.split(","));
+        return List.of(rawWords.split("[,\\s]+"));
     }
 }

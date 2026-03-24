@@ -2,9 +2,9 @@ package com.speed.typinggame.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-
+import lombok.Data;
 import com.speed.typinggame.entity.Score;
-
+@Data
 public class LeaderboardResponse{
     Long id;
     String username;

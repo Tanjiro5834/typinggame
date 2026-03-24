@@ -39,7 +39,7 @@ public class ScoreService {
     @Transactional
     public LeaderboardResponse submitScore(ScoreRequest request){
         double estimatedChars = request.wpm().doubleValue() * (request.duration() / 60.0) * 5;
-        if (estimatedChars > 2000) {
+        if (estimatedChars > 3000) {
             throw new IllegalArgumentException("Score is not physically plausible");
         }
 
@@ -47,7 +47,13 @@ public class ScoreService {
         score.setUsername(request.username());
         score.setWpm(request.wpm());
         score.setAccuracy(request.accuracy());
-        score.setMode(GameMode.valueOf(request.mode().toUpperCase()));
+        GameMode mode;
+        try{
+            mode = GameMode.valueOf(request.mode().toUpperCase());
+        }catch(Exception e){
+            throw new IllegalArgumentException("Invalid game mode: " + request.mode());
+        }
+        score.setMode(mode);
         score.setDuration(request.duration());
         score.setLanguage(request.language() != null ? request.language() : "en");
 
@@ -100,7 +106,15 @@ public class ScoreService {
         return "Novice";
     }
 
-    public List<String> getRandomWordSet(String difficulty, String language) {
+    public Difficulty parseDifficulty(String difficulty) {
+        try {
+            return Difficulty.valueOf(difficulty.toUpperCase());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid difficulty: " + difficulty);
+        }
+    }
+
+    public List<String> getRandomWordSet(String difficulty, String language, int count) {
         Difficulty parsedDifficulty;
         try{
             parsedDifficulty = difficulty != null
@@ -117,14 +131,14 @@ public class ScoreService {
                 safeLanguage
         );
 
-        if (wordSet == null) {
+        if (wordSet == null || wordSet.getWordsAsList().isEmpty()) {
             throw new IllegalArgumentException("No word set found for difficulty: " + difficulty);
         }
 
         List<String> words = new ArrayList<>(wordSet.getWordsAsList());
         Collections.shuffle(words);
 
-        int gameSize = Math.min(80, words.size());
+        int gameSize = Math.min(count, words.size());
         return words.subList(0, gameSize);
     }
 }

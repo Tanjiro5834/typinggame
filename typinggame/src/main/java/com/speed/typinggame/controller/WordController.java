@@ -24,9 +24,10 @@ public class WordController {
     @GetMapping("/random")
     public ResponseEntity<Map<String, List<String>>> getRandomWords(
         @RequestParam(defaultValue = "medium") String difficulty,
-        @RequestParam(defaultValue = "en") String language
+        @RequestParam(defaultValue = "en") String language,
+        @RequestParam(defaultValue = "80") int count
     ) {
-        List<String> words = scoreService.getRandomWordSet(difficulty, language);
+        List<String> words = scoreService.getRandomWordSet(difficulty, language, count);
         return ResponseEntity.ok(Map.of("words", words));
     }
 }

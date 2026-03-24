@@ -985,22 +985,22 @@ const Game = (() => {
     // Space pressed → advance word
     if (typed.endsWith(' ')) {
       const attempt = typed.trim();
-      totalKeys++;
 
-      // Mark word characters
+      // Mark word characters — count each character as a keypress
       const wordEl = display.querySelector(`[data-wi="${wordIndex}"]`);
       if (wordEl) {
-        currentWord.split('').forEach((ch, ci) => {
+        const maxLen = Math.max(currentWord.length, attempt.length);
+        for (let ci = 0; ci < maxLen; ci++) {
+          totalKeys++;
           const cel = wordEl.querySelector(`[data-ci="${ci}"]`);
-          if (!cel) return;
-          if (attempt[ci] === ch) {
-            cel.className = 'char correct';
+          if (attempt[ci] === currentWord[ci]) {
+            if (cel) cel.className = 'char correct';
             correctChars++;
             correctKeys++;
           } else {
-            cel.className = 'char incorrect';
+            if (cel) cel.className = 'char incorrect';
           }
-        });
+        }
         if (attempt !== currentWord) {
           wordEl.classList.add('error-word');
           wordEl.classList.remove('active-word');
@@ -1201,7 +1201,9 @@ const Leaderboard = (() => {
 
     try {
       let url = `${API.BASE}${API.SCORES_TOP}?limit=10`;
-      if (filterMode !== 'all') url += `http://localhost:8080/api/scores/top?limit=10&mode=${filterMode.toUpperCase()}`;
+      if (filterMode !== 'all') {
+        url += `&mode=${filterMode.toUpperCase()}`;
+      }
       const res = await fetch(url);
       if (!res.ok) throw new Error();
       scores = await res.json();

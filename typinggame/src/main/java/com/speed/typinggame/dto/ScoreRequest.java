@@ -22,7 +22,7 @@ public record ScoreRequest(
     String mode, 
 
     @NotNull(message = "Duration is required")
-    @Min(10)
+    @Min(value = 1, message = "Duration must be at least 1 second")
     Integer duration,
 
     String language

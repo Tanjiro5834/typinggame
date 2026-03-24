@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>typedash — typing speed test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d0f;
+    --surface: #141416;
+    --surface2: #1c1c20;
+    --border: #2a2a30;
+    --border2: #3a3a44;
+    --text: #e8e8f0;
+    --muted: #5a5a6e;
+    --muted2: #3a3a4e;
+    --accent: #7ee8a2;
+    --accent2: #4ecb7e;
+    --accent-dim: rgba(126,232,162,0.08);
+    --accent-glow: rgba(126,232,162,0.15);
+    --error: #ff6b6b;
+    --error-dim: rgba(255,107,107,0.12);
+    --warn: #ffd166;
+    --info: #74b9ff;
+    --mono: 'JetBrains Mono', monospace;
+    --display: 'Syne', sans-serif;
+  }
+
+  html { font-size: 16px; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* ── Scanline overlay ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 1.4rem;
+    letter-spacing: -0.04em;
+    color: var(--text);
+  }
+
+  .logo span { color: var(--accent); }
+
+  .header-meta {
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* ── Main layout ── */
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 24px;
+    gap: 32px;
+    max-width: 860px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* ── Mode selector ── */
+  .mode-bar {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+    width: 100%;
+  }
+
+  .mode-group {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .mode-group + .mode-group {
+    border-left: 1px solid var(--border);
+    padding-left: 4px;
+    margin-left: 4px;
+  }
+
+  .mode-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    padding: 8px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .mode-btn:hover { color: var(--text); background: var(--surface2); }
+
+  .mode-btn.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(126,232,162,0.2);
+  }
+
+  /* ── Stats bar ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    width: 100%;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: border-color 0.2s;
+  }
+
+  .stat-card.highlight { border-color: rgba(126,232,162,0.3); }
+
+  .stat-label {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    transition: color 0.2s;
+  }
+
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.warn { color: var(--warn); }
+  .stat-value.error { color: var(--error); }
+
+  .stat-unit {
+    font-size: 0.65rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* ── Timer bar ── */
+  .timer-wrap {
+    width: 100%;
+    height: 3px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .timer-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 1s linear, background 0.5s;
+    width: 100%;
+  }
+
+  .timer-bar.warn { background: var(--warn); }
+  .timer-bar.danger { background: var(--error); }
+
+  /* ── Word display ── */
+  .word-display-wrap {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px 36px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .word-display-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(126,232,162,0.03) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  #word-display {
+    font-size: 1.35rem;
+    line-height: 2;
+    letter-spacing: 0.01em;
+    word-spacing: 0.3em;
+    color: var(--muted);
+    user-select: none;
+    position: relative;
+  }
+
+  .word { display: inline-block; position: relative; }
+  .word + .word { margin-left: 0.3em; }
+
+  .char { display: inline-block; position: relative; transition: color 0.05s; }
+  .char.correct { color: var(--text); }
+  .char.incorrect { color: var(--error); text-decoration: underline; text-decoration-color: var(--error); }
+  .char.current { color: var(--text); }
+
+  /* Blinking caret */
+  .char.cursor::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 10%; height: 80%;
+    width: 2px;
+    background: var(--accent);
+    border-radius: 1px;
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  .word.active-word { background: var(--accent-dim); border-radius: 4px; padding: 0 2px; margin: 0 calc(0.3em - 2px); }
+  .word.error-word { background: var(--error-dim); border-radius: 4px; padding: 0 2px; margin: 0 calc(0.3em - 2px); }
+
+  /* Scroll mask */
+  .word-display-mask {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 40px;
+    background: linear-gradient(transparent, var(--surface));
+    pointer-events: none;
+    border-radius: 0 0 14px 14px;
+  }
+
+  /* ── Input field ── */
+  .input-wrap {
+    width: 100%;
+    position: relative;
+  }
+
+  #type-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 1rem;
+    padding: 14px 18px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    caret-color: var(--accent);
+  }
+
+  #type-input:focus {
+    border-color: rgba(126,232,162,0.4);
+    box-shadow: 0 0 0 3px rgba(126,232,162,0.06);
+  }
+
+  #type-input.shake {
+    animation: shake 0.2s ease;
+  }
+
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    25%{transform:translateX(-4px)}
+    75%{transform:translateX(4px)}
+  }
+
+  .input-hint {
+    position: absolute;
+    right: 14px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.68rem;
+    color: var(--muted2);
+    letter-spacing: 0.08em;
+    pointer-events: none;
+  }
+
+  /* ── Overlay states ── */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(13,13,15,0.92);
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    backdrop-filter: blur(4px);
+    transition: opacity 0.2s;
+  }
+
+  .overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .overlay-title {
+    font-family: var(--display);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  .overlay-sub {
+    font-size: 0.72rem;
+    color: var(--muted2);
+    letter-spacing: 0.1em;
+  }
+
+  /* ── Results panel ── */
+  #results-panel {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid rgba(126,232,162,0.2);
+    border-radius: 14px;
+    padding: 32px 36px;
+    display: none;
+    flex-direction: column;
+    gap: 24px;
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity:0; transform:translateY(12px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  #results-panel.visible { display: flex; }
+
+  .results-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .results-title {
+    font-family: var(--display);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .results-big {
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    font-family: var(--display);
+  }
+
+  .results-big span { font-size: 1.2rem; color: var(--muted); font-family: var(--mono); font-weight: 400; }
+
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .results-stat {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+
+  .results-stat .label { font-size: 0.65rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+  .results-stat .val { font-size: 1.4rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .results-stat .val.green { color: var(--accent); }
+  .results-stat .val.red   { color: var(--error); }
+  .results-stat .val.yellow { color: var(--warn); }
+
+  /* Save form */
+  .save-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  #username-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  #username-input:focus { border-color: rgba(126,232,162,0.4); }
+  #username-input::placeholder { color: var(--muted2); }
+
+  .btn {
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .btn:hover { border-color: var(--muted); background: var(--surface2); }
+
+  .btn.primary {
+    background: var(--accent-dim);
+    border-color: rgba(126,232,162,0.3);
+    color: var(--accent);
+  }
+
+  .btn.primary:hover { background: rgba(126,232,162,0.14); border-color: var(--accent2); }
+  .btn.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .save-status {
+    font-size: 0.72rem;
+    color: var(--muted);
+    min-width: 80px;
+  }
+
+  .save-status.ok { color: var(--accent); }
+  .save-status.err { color: var(--error); }
+
+  /* ── Leaderboard ── */
+  #leaderboard-section {
+    width: 100%;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .lb-filters {
+    display: flex;
+    gap: 4px;
+  }
+
+  .lb-filter {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .lb-filter.active, .lb-filter:hover { color: var(--text); border-color: var(--border2); background: var(--surface2); }
+
+  .lb-table {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .lb-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 80px 70px 60px;
+    padding: 12px 16px;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8rem;
+    transition: background 0.1s;
+  }
+
+  .lb-row:last-child { border-bottom: none; }
+  .lb-row:hover { background: var(--surface2); }
+
+  .lb-row.header {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: var(--surface2);
+  }
+
+  .lb-row.header:hover { background: var(--surface2); }
+
+  .lb-rank { color: var(--muted); font-weight: 700; }
+  .lb-rank.top1 { color: var(--warn); }
+  .lb-rank.top2 { color: #c0c0d0; }
+  .lb-rank.top3 { color: #cd7f32; }
+  .lb-name { color: var(--text); font-weight: 500; }
+  .lb-wpm { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .lb-acc { color: var(--text); font-variant-numeric: tabular-nums; }
+  .lb-mode { color: var(--muted); font-size: 0.7rem; }
+
+  .lb-empty {
+    padding: 32px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  .lb-loading {
+    padding: 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+  }
+
+  /* ── Footer ── */
+  footer {
+    padding: 20px 40px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    color: var(--muted2);
+    letter-spacing: 0.08em;
+  }
+
+  .footer-keys { display: flex; gap: 16px; }
+
+  kbd {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+
+  /* ── Animations ── */
+  @keyframes pulse-accent {
+    0%,100% { box-shadow: 0 0 0 0 rgba(126,232,162,0); }
+    50% { box-shadow: 0 0 0 6px rgba(126,232,162,0.08); }
+  }
+
+  .word-display-wrap.running { animation: pulse-accent 3s ease infinite; }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    header { padding: 16px 20px; }
+    main { padding: 24px 16px; gap: 20px; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    #word-display { font-size: 1.1rem; }
+    .results-big { font-size: 2.5rem; }
+    .results-grid { grid-template-columns: repeat(2, 1fr); }
+    .lb-row { grid-template-columns: 36px 1fr 70px 60px; }
+    .lb-mode { display: none; }
+    footer { flex-direction: column; gap: 8px; }
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* ── Cursor glow on active ── */
+  #type-input:focus ~ .cursor-glow { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">type<span>dash</span></div>
+  <div class="header-meta">precision typing benchmark</div>
+</header>
+
+<main>
+
+  <!-- Mode selector -->
+  <div class="mode-bar" id="mode-bar">
+    <div class="mode-group" id="mode-type-group">
+      <button class="mode-btn active" data-mode-type="timed">timed</button>
+      <button class="mode-btn" data-mode-type="words">words</button>
+      <button class="mode-btn" data-mode-type="quote">quote</button>
+    </div>
+    <div class="mode-group" id="mode-val-group">
+      <button class="mode-btn active" data-mode-val="30">30s</button>
+      <button class="mode-btn" data-mode-val="60">60s</button>
+      <button class="mode-btn" data-mode-val="120">120s</button>
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="stats-row">
+    <div class="stat-card" id="card-wpm">
+      <div class="stat-label">wpm</div>
+      <div class="stat-value accent" id="stat-wpm">0</div>
+      <div class="stat-unit">words/min</div>
+    </div>
+    <div class="stat-card" id="card-acc">
+      <div class="stat-label">accuracy</div>
+      <div class="stat-value" id="stat-acc">—</div>
+      <div class="stat-unit">percent</div>
+    </div>
+    <div class="stat-card" id="card-time">
+      <div class="stat-label">time</div>
+      <div class="stat-value" id="stat-time">30</div>
+      <div class="stat-unit">seconds</div>
+    </div>
+    <div class="stat-card" id="card-chars">
+      <div class="stat-label">chars</div>
+      <div class="stat-value" id="stat-chars">0</div>
+      <div class="stat-unit">correct</div>
+    </div>
+  </div>
+
+  <!-- Timer bar -->
+  <div class="timer-wrap">
+    <div class="timer-bar" id="timer-bar"></div>
+  </div>
+
+  <!-- Word display -->
+  <div class="word-display-wrap" id="word-display-wrap">
+    <div id="word-display"></div>
+    <div class="word-display-mask"></div>
+    <div class="overlay" id="idle-overlay">
+      <div class="overlay-title">ready to type</div>
+      <div class="overlay-sub">click the input below to start</div>
+    </div>
+    <div class="overlay hidden" id="finished-overlay">
+      <div class="overlay-title">test complete</div>
+      <div class="overlay-sub">see results below ↓</div>
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div class="input-wrap">
+    <input type="text" id="type-input" placeholder="start typing..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <span class="input-hint" id="input-hint">focus to begin</span>
+  </div>
+
+  <!-- Results -->
+  <div id="results-panel">
+    <div class="results-header">
+      <div>
+        <div class="results-title">test complete</div>
+        <div class="results-big" id="result-wpm">0 <span>wpm</span></div>
+      </div>
+      <button class="btn primary" id="retry-btn" onclick="Game.restart()">↺ retry</button>
+    </div>
+
+    <div class="results-grid">
+      <div class="results-stat">
+        <div class="label">accuracy</div>
+        <div class="val green" id="result-acc">—</div>
+      </div>
+      <div class="results-stat">
+        <div class="label">raw wpm</div>
+        <div class="val" id="result-raw">—</div>
+      </div>
+      <div class="results-stat">
+        <div class="label">correct chars</div>
+        <div class="val green" id="result-correct">—</div>
+      </div>
+      <div class="results-stat">
+        <div class="label">incorrect chars</div>
+        <div class="val red" id="result-incorrect">—</div>
+      </div>
+      <div class="results-stat">
+        <div class="label">duration</div>
+        <div class="val" id="result-duration">—</div>
+      </div>
+      <div class="results-stat">
+        <div class="label">mode</div>
+        <div class="val yellow" id="result-mode">—</div>
+      </div>
+    </div>
+
+    <!-- Save to leaderboard -->
+    <div class="save-row">
+      <input type="text" id="username-input" placeholder="enter username to save score..." maxlength="20">
+      <button class="btn primary" id="save-btn" onclick="Leaderboard.save()">save score</button>
+      <span class="save-status" id="save-status"></span>
+    </div>
+  </div>
+
+  <!-- Leaderboard -->
+  <div id="leaderboard-section">
+    <div class="section-header">
+      <div class="section-title">leaderboard</div>
+      <div class="lb-filters">
+        <button class="lb-filter active" data-lb-filter="all" onclick="Leaderboard.filter('all', this)">all</button>
+        <button class="lb-filter" data-lb-filter="timed" onclick="Leaderboard.filter('timed', this)">timed</button>
+        <button class="lb-filter" data-lb-filter="words" onclick="Leaderboard.filter('words', this)">words</button>
+      </div>
+    </div>
+    <div class="lb-table" id="lb-table">
+      <div class="lb-loading" id="lb-loading">loading scores...</div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <span>typedash v1.0</span>
+  <div class="footer-keys">
+    <span><kbd>tab</kbd> restart</span>
+    <span><kbd>esc</kbd> stop</span>
+    <span><kbd>enter</kbd> save score</span>
+  </div>
+</footer>
+
+<script>
+/* ══════════════════════════════════════════════
+   CONFIG — update these to match your backend
+   ══════════════════════════════════════════════ */
+const API = {
+  BASE: 'http://localhost:8080/api',
+  SCORES_POST: '/scores',
+  SCORES_TOP:  '/scores/top',
+  WORDS:       '/words/random',
+};
+
+/* ══════════════════════════════════════════════
+   WORD BANKS (fallback when API unavailable)
+   ══════════════════════════════════════════════ */
+const WORDS = {
+  easy: `the quick brown fox jumps over a lazy dog and runs through the open field near the old wooden bridge where children play every summer afternoon`.split(' '),
+  medium: `abstract function variable return boolean interface implement extends prototype recursive algorithm complexity performance benchmark iteration`.split(' '),
+  hard: `asynchronous middleware encapsulation polymorphism deserialization authentication microservices infrastructure orchestration containerization`.split(' '),
+};
+
+const QUOTES = [
+  "The only way to do great work is to love what you do.",
+  "Code is like humor. When you have to explain it, it's bad.",
+  "First, solve the problem. Then, write the code.",
+  "Any fool can write code that a computer can understand. Good programmers write code that humans can understand.",
+  "Simplicity is the soul of efficiency.",
+  "Make it work, make it right, make it fast.",
+];
+
+/* ══════════════════════════════════════════════
+   GAME ENGINE
+   ══════════════════════════════════════════════ */
+const Game = (() => {
+  // State
+  let state       = 'idle';   // idle | running | finished
+  let modeType    = 'timed';  // timed | words | quote
+  let modeVal     = 30;       // seconds or word count
+  let words       = [];
+  let wordIndex   = 0;
+  let charIndex   = 0;
+  let correctChars= 0;
+  let totalKeys   = 0;
+  let correctKeys = 0;
+  let startTime   = null;
+  let timerID     = null;
+  let wpmID       = null;
+  let elapsed     = 0;
+
+  // DOM refs
+  const display   = document.getElementById('word-display');
+  const input     = document.getElementById('type-input');
+  const timerBar  = document.getElementById('timer-bar');
+  const hint      = document.getElementById('input-hint');
+  const wrap      = document.getElementById('word-display-wrap');
+  const idleOv    = document.getElementById('idle-overlay');
+  const doneOv    = document.getElementById('finished-overlay');
+
+  /* ── Word generation ── */
+  async function generateWords() {
+    if (modeType === 'quote') {
+      const q = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+      return q.split(' ');
+    }
+
+    // Try backend, fall back to local
+    try {
+      const count = modeType === 'words' ? modeVal : 80;
+      const res = await fetch(`${API.BASE}${API.WORDS}?count=${count}&difficulty=medium`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      return data.words || data;
+    } catch {
+      const pool = [...WORDS.easy, ...WORDS.medium];
+      const count = modeType === 'words' ? modeVal : 80;
+      const out = [];
+      for (let i = 0; i < count; i++) {
+        out.push(pool[Math.floor(Math.random() * pool.length)]);
+      }
+      return out;
+    }
+  }
+
+  /* ── Render word display ── */
+  function renderWords() {
+    display.innerHTML = '';
+    words.forEach((w, wi) => {
+      const span = document.createElement('span');
+      span.className = 'word';
+      span.dataset.wi = wi;
+      w.split('').forEach((ch, ci) => {
+        const c = document.createElement('span');
+        c.className = 'char';
+        c.dataset.ci = ci;
+        c.textContent = ch;
+        span.appendChild(c);
+      });
+      // Space after word
+      const sp = document.createElement('span');
+      sp.className = 'char space';
+      sp.dataset.ci = w.length;
+      sp.textContent = ' ';
+      span.appendChild(sp);
+      display.appendChild(span);
+    });
+    setCursor(0, 0);
+  }
+
+  /* ── Cursor & active word ── */
+  function setCursor(wi, ci) {
+    document.querySelectorAll('.cursor').forEach(el => el.classList.remove('cursor'));
+    document.querySelectorAll('.active-word').forEach(el => el.classList.remove('active-word'));
+    const word = display.querySelector(`[data-wi="${wi}"]`);
+    if (!word) return;
+    word.classList.add('active-word');
+    const charEl = word.querySelector(`[data-ci="${ci}"]`);
+    if (charEl) charEl.classList.add('cursor');
+  }
+
+  /* ── Init / restart ── */
+  async function restart() {
+    clearInterval(timerID);
+    clearInterval(wpmID);
+    state = 'idle';
+    wordIndex = 0;
+    charIndex = 0;
+    correctChars = 0;
+    totalKeys = 0;
+    correctKeys = 0;
+    startTime = null;
+    elapsed = 0;
+
+    // Reset UI
+    input.value = '';
+    input.disabled = false;
+    hint.textContent = 'focus to begin';
+    wrap.classList.remove('running');
+    idleOv.classList.remove('hidden');
+    doneOv.classList.add('hidden');
+    document.getElementById('results-panel').classList.remove('visible');
+    document.getElementById('save-status').textContent = '';
+    document.getElementById('save-btn').disabled = false;
+
+    setStatValue('stat-wpm', '0', '');
+    setStatValue('stat-acc', '—', '');
+    setStatValue('stat-chars', '0', '');
+    const duration = modeType === 'timed' ? modeVal : '∞';
+    setStatValue('stat-time', duration, '');
+    timerBar.style.width = '100%';
+    timerBar.className = 'timer-bar';
+
+    // Generate words
+    words = await generateWords();
+    renderWords();
+    updateModeValButtons();
+  }
+
+  /* ── Start game ── */
+  function start() {
+    if (state !== 'idle') return;
+    state = 'running';
+    startTime = Date.now();
+    idleOv.classList.add('hidden');
+    wrap.classList.add('running');
+    hint.textContent = '';
+
+    if (modeType === 'timed') {
+      startCountdown();
+    }
+
+    wpmID = setInterval(updateLiveStats, 500);
+  }
+
+  /* ── Countdown timer ── */
+  function startCountdown() {
+    let remaining = modeVal;
+    setStatValue('stat-time', remaining, '');
+
+    timerID = setInterval(() => {
+      remaining--;
+      elapsed = modeVal - remaining;
+      setStatValue('stat-time', remaining, '');
+
+      const pct = (remaining / modeVal) * 100;
+      timerBar.style.width = pct + '%';
+      if (pct <= 25) timerBar.className = 'timer-bar danger';
+      else if (pct <= 50) timerBar.className = 'timer-bar warn';
+
+      if (remaining <= 0) {
+        clearInterval(timerID);
+        finish();
+      }
+    }, 1000);
+  }
+
+  /* ── Live stats update ── */
+  function updateLiveStats() {
+    if (!startTime || state !== 'running') return;
+    const mins = (Date.now() - startTime) / 60000;
+    if (mins === 0) return;
+
+    const wpm = Math.round((correctChars / 5) / mins);
+    const acc = totalKeys > 0 ? Math.round((correctKeys / totalKeys) * 100) : 100;
+
+    setStatValue('stat-wpm', wpm, 'accent');
+    setStatValue('stat-acc', acc + '%', acc >= 90 ? '' : acc >= 75 ? 'warn' : 'error');
+    setStatValue('stat-chars', correctChars, '');
+
+    if (modeType !== 'timed') {
+      const s = Math.round((Date.now() - startTime) / 1000);
+      setStatValue('stat-time', s, '');
+      timerBar.style.width = '100%';
+    }
+  }
+
+  /* ── Input handler ── */
+  function handleInput(e) {
+    if (state === 'finished') return;
+    if (state === 'idle') start();
+
+    const typed = input.value;
+    const currentWord = words[wordIndex];
+    if (!currentWord) return;
+
+    // Space pressed → advance word
+    if (typed.endsWith(' ')) {
+      const attempt = typed.trim();
+      totalKeys++;
+
+      // Mark word characters
+      const wordEl = display.querySelector(`[data-wi="${wordIndex}"]`);
+      if (wordEl) {
+        currentWord.split('').forEach((ch, ci) => {
+          const cel = wordEl.querySelector(`[data-ci="${ci}"]`);
+          if (!cel) return;
+          if (attempt[ci] === ch) {
+            cel.className = 'char correct';
+            correctChars++;
+            correctKeys++;
+          } else {
+            cel.className = 'char incorrect';
+          }
+        });
+        if (attempt !== currentWord) {
+          wordEl.classList.add('error-word');
+          wordEl.classList.remove('active-word');
+        } else {
+          wordEl.classList.remove('active-word', 'error-word');
+        }
+      }
+
+      wordIndex++;
+      charIndex = 0;
+      input.value = '';
+
+      if (modeType === 'words' && wordIndex >= words.length) {
+        elapsed = (Date.now() - startTime) / 1000;
+        finish(); return;
+      }
+
+      if (modeType === 'quote' && wordIndex >= words.length) {
+        elapsed = (Date.now() - startTime) / 1000;
+        finish(); return;
+      }
+
+      setCursor(wordIndex, 0);
+      scrollToWord(wordIndex);
+      return;
+    }
+
+    // Typing characters
+    charIndex = typed.length;
+    totalKeys++;
+    const expected = currentWord[charIndex - 1];
+    const actual = typed[charIndex - 1];
+
+    if (actual !== expected) {
+      input.classList.remove('shake');
+      void input.offsetWidth;
+      input.classList.add('shake');
+    } else {
+      correctKeys++;
+    }
+
+    // Update char highlights in real-time
+    const wordEl = display.querySelector(`[data-wi="${wordIndex}"]`);
+    if (wordEl) {
+      currentWord.split('').forEach((ch, ci) => {
+        const cel = wordEl.querySelector(`[data-ci="${ci}"]`);
+        if (!cel) return;
+        if (ci < typed.length) {
+          cel.className = typed[ci] === ch ? 'char correct' : 'char incorrect';
+        } else {
+          cel.className = 'char';
+        }
+      });
+    }
+
+    setCursor(wordIndex, charIndex);
+  }
+
+  /* ── Scroll display to active word ── */
+  function scrollToWord(wi) {
+    const wordEl = display.querySelector(`[data-wi="${wi}"]`);
+    if (wordEl) {
+      wordEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  /* ── Finish game ── */
+  function finish() {
+    clearInterval(timerID);
+    clearInterval(wpmID);
+    state = 'finished';
+    wrap.classList.remove('running');
+    input.disabled = true;
+    hint.textContent = '';
+    doneOv.classList.remove('hidden');
+    setTimeout(() => doneOv.classList.add('hidden'), 1800);
+
+    const totalSecs = modeType === 'timed' ? elapsed || modeVal : elapsed;
+    const mins = totalSecs / 60;
+    const wpm = Math.round((correctChars / 5) / (mins || 0.001));
+    const raw = Math.round((totalKeys / 5) / (mins || 0.001));
+    const acc = totalKeys > 0 ? ((correctKeys / totalKeys) * 100).toFixed(1) : '100.0';
+    const incorrect = totalKeys - correctKeys;
+
+    setStatValue('stat-wpm', wpm, 'accent');
+    setStatValue('stat-acc', acc + '%', '');
+    setStatValue('stat-chars', correctChars, '');
+
+    // Show results
+    showResults({ wpm, raw, acc, correctChars, incorrect, totalSecs });
+  }
+
+  function showResults({ wpm, raw, acc, correctChars, incorrect, totalSecs }) {
+    const panel = document.getElementById('results-panel');
+    panel.classList.add('visible');
+
+    document.getElementById('result-wpm').innerHTML = `${wpm} <span>wpm</span>`;
+    document.getElementById('result-acc').textContent = acc + '%';
+    document.getElementById('result-raw').textContent = raw;
+    document.getElementById('result-correct').textContent = correctChars;
+    document.getElementById('result-incorrect').textContent = incorrect;
+    document.getElementById('result-duration').textContent = Math.round(totalSecs) + 's';
+    document.getElementById('result-mode').textContent = `${modeType} / ${modeVal}${modeType === 'timed' ? 's' : 'w'}`;
+
+    // Store for leaderboard save
+    Game.lastResult = { wpm, raw, acc: parseFloat(acc), correctChars, incorrect, totalSecs, modeType, modeVal };
+
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /* ── Helpers ── */
+  function setStatValue(id, val, cls) {
+    const el = document.getElementById(id);
+    el.textContent = val;
+    el.className = 'stat-value' + (cls ? ` ${cls}` : '');
+  }
+
+  function setModeType(type) {
+    modeType = type;
+    document.querySelectorAll('[data-mode-type]').forEach(b => b.classList.toggle('active', b.dataset.modeType === type));
+    // Update val buttons
+    const isQuote = type === 'quote';
+    if (type === 'words') {
+      updateModeValLabels(['10w', '25w', '50w'], [10, 25, 50]);
+      modeVal = 25;
+    } else if (type === 'timed') {
+      updateModeValLabels(['30s', '60s', '120s'], [30, 60, 120]);
+      modeVal = 30;
+    }
+    document.getElementById('mode-val-group').style.display = isQuote ? 'none' : 'flex';
+    restart();
+  }
+
+  function updateModeValLabels(labels, vals) {
+    const btns = document.querySelectorAll('[data-mode-val]');
+    btns.forEach((b, i) => {
+      if (labels[i]) { b.textContent = labels[i]; b.dataset.modeVal = vals[i]; }
+    });
+    modeVal = vals[0];
+    updateModeValButtons();
+  }
+
+  function updateModeValButtons() {
+    document.querySelectorAll('[data-mode-val]').forEach(b => {
+      b.classList.toggle('active', +b.dataset.modeVal === modeVal);
+    });
+  }
+
+  function setModeVal(val) {
+    modeVal = +val;
+    updateModeValButtons();
+    restart();
+  }
+
+  /* ── Event listeners ── */
+  input.addEventListener('input', handleInput);
+  input.addEventListener('focus', () => {
+    if (state === 'idle') hint.textContent = 'type to start...';
+  });
+  input.addEventListener('blur', () => {
+    if (state === 'idle') hint.textContent = 'focus to begin';
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Tab') { e.preventDefault(); restart(); }
+    if (e.key === 'Escape' && state === 'running') { clearInterval(timerID); clearInterval(wpmID); restart(); }
+    if (e.key === 'Enter' && state === 'finished') {
+      document.getElementById('username-input').focus();
+    }
+  });
+
+  // Mode buttons
+  document.querySelectorAll('[data-mode-type]').forEach(b => {
+    b.addEventListener('click', () => setModeType(b.dataset.modeType));
+  });
+  document.querySelectorAll('[data-mode-val]').forEach(b => {
+    b.addEventListener('click', () => setModeVal(b.dataset.modeVal));
+  });
+
+  // Init
+  restart();
+
+  return { restart, state: () => state, lastResult: null };
+})();
+
+
+/* ══════════════════════════════════════════════
+   LEADERBOARD
+   ══════════════════════════════════════════════ */
+const Leaderboard = (() => {
+  let currentFilter = 'all';
+  let scores = [];
+
+  /* ── Fetch scores from API ── */
+  async function load(filterMode = 'all') {
+    const table = document.getElementById('lb-table');
+    table.innerHTML = '<div class="lb-loading">loading scores...</div>';
+
+    try {
+      let url = `${API.BASE}${API.SCORES_TOP}?limit=10`;
+      if (filterMode !== 'all') url += `http://localhost:8080/api/scores/top?limit=10&mode=${filterMode.toUpperCase()}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error();
+      scores = await res.json();
+      render(scores);
+    } catch {
+      // Show mock/empty state when API is offline
+      render([]);
+    }
+  }
+
+  /* ── Render leaderboard table ── */
+  function render(data) {
+    const table = document.getElementById('lb-table');
+
+    const header = `<div class="lb-row header">
+      <div>rank</div><div>player</div><div>wpm</div><div>acc</div><div>mode</div>
+    </div>`;
+
+    if (!data || data.length === 0) {
+      table.innerHTML = header + '<div class="lb-empty">no scores yet — be the first!</div>';
+      return;
+    }
+
+    const rows = data.map((s, i) => {
+      const rank = i + 1;
+      const rankClass = rank === 1 ? 'top1' : rank === 2 ? 'top2' : rank === 3 ? 'top3' : '';
+      const rankSymbol = rank === 1 ? '◆' : rank === 2 ? '◈' : rank === 3 ? '◇' : rank;
+      const modeLbl = `${s.mode || 'timed'}/${s.duration || '60'}${s.mode === 'words' ? 'w' : 's'}`;
+      return `<div class="lb-row">
+        <div class="lb-rank ${rankClass}">${rankSymbol}</div>
+        <div class="lb-name">${escHtml(s.username || 'anonymous')}</div>
+        <div class="lb-wpm">${s.wpm}</div>
+        <div class="lb-acc">${s.accuracy ? s.accuracy.toFixed(1) + '%' : '—'}</div>
+        <div class="lb-mode">${modeLbl}</div>
+      </div>`;
+    }).join('');
+
+    table.innerHTML = header + rows;
+  }
+
+  /* ── Filter ── */
+  function filter(mode, btn) {
+    currentFilter = mode;
+    document.querySelectorAll('.lb-filter').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    load(mode);
+  }
+
+  /* ── Save score ── */
+  async function save() {
+    const username = document.getElementById('username-input').value.trim();
+    const status = document.getElementById('save-status');
+    const btn = document.getElementById('save-btn');
+    const result = Game.lastResult;
+
+    if (!username) {
+      document.getElementById('username-input').focus();
+      status.textContent = 'enter a username';
+      status.className = 'save-status err';
+      return;
+    }
+
+    if (!result) {
+      status.textContent = 'no result to save';
+      status.className = 'save-status err';
+      return;
+    }
+
+    btn.disabled = true;
+    status.textContent = 'saving...';
+    status.className = 'save-status';
+
+    const payload = {
+      username: username,
+      wpm: result.wpm,
+      accuracy: result.acc,
+      mode: result.modeType.toUpperCase(),
+      duration: result.modeType === 'timed'
+          ? result.modeVal
+          : Math.round(result.totalSecs),
+      language: 'en'
+    };
+
+    try {
+      const res = await fetch(`${API.BASE}${API.SCORES_POST}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      status.textContent = '✓ saved!';
+      status.className = 'save-status ok';
+      btn.textContent = 'saved';
+      setTimeout(() => load(currentFilter), 800);
+    } catch (err) {
+      status.textContent = 'API offline';
+      status.className = 'save-status err';
+      btn.disabled = false;
+      console.warn('Save failed:', err);
+    }
+  }
+
+  /* ── Helpers ── */
+  function escHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
+  // Init
+  load('all');
+
+  return { load, filter, save };
+})();
+</script>
+</body>
+</html>
